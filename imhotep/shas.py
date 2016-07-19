@@ -1,4 +1,8 @@
 from collections import namedtuple
+import logging
+import sys
+
+log = logging.getLogger(__name__)
 
 Remote = namedtuple('Remote', ('name', 'url'))
 CommitInfo = namedtuple("CommitInfo",
@@ -42,8 +46,28 @@ class PRInfo(object):
                           self.head_ref)
 
 
-def get_pr_info(requester, reponame, number):
+def get_pr_info(requester, reponame, number=None, branch=None):
     "Returns the PullRequest as a PRInfo object"
-    resp = requester.get(
-        'https://api.github.com/repos/%s/pulls/%s' % (reponame, number))
-    return PRInfo(resp.json())
+    if number:
+        resp = requester.get(
+            'https://api.github.com/repos/{}/pulls/{}'.format(
+                reponame, number
+            )
+        )
+        return PRInfo(resp.json())
+
+    if branch:
+        log.info('Searching for PR for branch %s', branch)
+        resp = requester.get(
+            'https://api.github.com/repos/{}/pulls'.format(reponame)
+        )
+        prs = resp.json()
+        try:
+            pr = next(p for p in prs if p['head']['ref'] == branch)
+        except StopIteration:
+            sys.exit('No PR found for branch {}'.format(branch))
+
+        return PRInfo(pr)
+
+    raise ValueError('Must provide `number` or `branch`')
+

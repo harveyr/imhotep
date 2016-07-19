@@ -2,6 +2,7 @@ import argparse
 import logging
 import subprocess
 import glob
+import os
 
 import pkg_resources
 
@@ -100,7 +101,6 @@ class Imhotep(object):
         cinfo = self.commit_info
         if not reporter:
             reporter = self.get_reporter()
-
         try:
             repo = self.manager.clone_repo(self.repo_name,
                                            remote_repo=cinfo.remote_repo,
@@ -152,6 +152,8 @@ def gen_imhotep(**kwargs):
     plugins = load_plugins()
     tools = get_tools(kwargs['linter'], plugins)
 
+    repo_name = kwargs['repo_name']
+
     if kwargs['shallow']:
         Manager = ShallowRepoManager
     else:
@@ -162,8 +164,29 @@ def gen_imhotep(**kwargs):
                       tools=tools,
                       executor=run)
 
-    if kwargs['pr_number']:
-        pr_info = get_pr_info(req, kwargs['repo_name'], kwargs['pr_number'])
+    source_dir = kwargs['source_dir']
+    if source_dir:
+        if not os.path.exists(os.path.join(source_dir, '.git')):
+            raise ValueError(
+                'Path does not exist or is not a directory: {}'.format(
+                    source_dir
+                )
+            )
+
+        log.info('Found git repo at %s', source_dir)
+
+        branch = subprocess.check_output(
+            'git symbolic-ref HEAD 2>/dev/null',
+            shell=True,
+            cwd=source_dir
+        ).strip().replace('refs/heads/', '')
+
+        log.info('Branch: %s', branch)
+
+        pr_info = get_pr_info(req, repo_name, branch=branch)
+        commit_info = pr_info.to_commit_info()
+    elif kwargs['pr_number']:
+        pr_info = get_pr_info(req, repo_name, kwargs['pr_number'])
         commit_info = pr_info.to_commit_info()
     else:
         # TODO(justinabrahms): origin & remote_repo doesnt work for commits
@@ -203,7 +226,7 @@ def parse_args(args):
         type=str,
         help="Configuration file in json.")
     arg_parser.add_argument(
-        '--repo_name', required=True,
+        '--repo-name', required=True,
         help="Github repository name in owner/repo format")
     arg_parser.add_argument(
         '--commit',
@@ -236,7 +259,8 @@ def parse_args(args):
         help="Indicates the repository requires authentication")
     arg_parser.add_argument(
         '--pr-number',
-        help="Number of the pull request to comment on")
+        help="Number of the pull request to comment on",
+        required=False)
     arg_parser.add_argument(
         '--cache-directory',
         help="Path to directory to cache the repository",
@@ -253,5 +277,9 @@ def parse_args(args):
         '--shallow',
         help="Performs a shallow clone of the repo",
         action="store_true")
+    arg_parser.add_argument(
+        '--source-dir',
+        help="Run against the source code at this path as-is",
+        required=False)
     # parse out repo name
     return arg_parser.parse_args(args)
