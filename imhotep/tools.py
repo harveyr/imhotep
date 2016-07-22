@@ -20,7 +20,7 @@ class Tool(object):
     def get_configs(self):
         return list()
 
-    def invoke(self, dirname, filenames=set(), linter_configs=set()):
+    def invoke(self, dirname, filenames=None, linter_configs=None):
         """
         Main entrypoint for all plugins.
 
@@ -35,6 +35,11 @@ class Tool(object):
         }
 
         """
+        if filenames is None:
+            filenames = set()
+        if linter_configs is None:
+            linter_configs = set()
+
         retval = defaultdict(lambda: defaultdict(list))
         if len(filenames):
             to_find = ' -o '.join(['-samefile "%s"' % f for f in filenames])

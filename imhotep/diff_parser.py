@@ -78,6 +78,8 @@ class DiffContextParser:
         before_line_number, after_line_number = 0, 0
         position = 0
 
+        import ipdb; ipdb.set_trace()
+
         for line in self.diff_text.splitlines():
 
             # New File
