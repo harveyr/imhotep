@@ -36,16 +36,16 @@ def main():
     if params['debug']:
         logging.basicConfig(level=logging.DEBUG)
     else:
-        logging.basicConfig()
+        logging.basicConfig(level=logging.INFO)
 
     try:
         imhotep = app.gen_imhotep(**params)
     except NoGithubCredentials:
         log.error("You must specify a GitHub username or password.")
         return False
-    except NoCommitInfo:
-        log.error("You must specify a commit or PR number")
-        return False
+    # except NoCommitInfo:
+    #     log.error("You must specify a commit or PR number")
+    #     return False
     except UnknownTools as e:
         log.error("Didn't find any of the specified linters.")
         log.error("Known linters: %s", ', '.join(e.known))

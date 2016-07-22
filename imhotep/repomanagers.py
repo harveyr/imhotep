@@ -2,7 +2,11 @@ import logging
 import os
 from tempfile import mkdtemp
 
-from .repositories import Repository, AuthenticatedRepository
+from .repositories import (
+    AuthenticatedRepository,
+    Repository,
+    LocalRepository,
+)
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +68,17 @@ class RepoManager(object):
                      self.executor,
                      shallow=self.shallow_clone)
         return (dirname, repo)
+
+    def get_local_repo(self, path):
+        if not os.path.isdir(os.path.join(path, '.git')):
+            raise ValueError('{} is not a git repo'.format(path))
+
+        return LocalRepository(
+            name=os.path.split(path)[-1],
+            loc=path,
+            tools=self.tools,
+            executor=self.executor
+        )
 
     def clone_repo(self, repo_name, remote_repo, ref):
         """Clones the given repo and returns the Repository object."""

@@ -58,11 +58,22 @@ def load_plugins():
 
 
 class Imhotep(object):
-    def __init__(self, requester=None, repo_manager=None,
-                 repo_name=None, pr_number=None,
-                 commit_info=None,
-                 commit=None, origin_commit=None, no_post=None, debug=None,
-                 filenames=None, shallow_clone=False, **kwargs):
+    def __init__(
+        self,
+        requester=None,
+        repo_manager=None,
+        repo_name=None,
+        source_dir=None,
+        pr_number=None,
+        commit_info=None,
+        commit=None,
+        origin_commit=None,
+        no_post=None,
+        debug=None,
+        filenames=None,
+        shallow_clone=False,
+        **kwargs
+    ):
         # TODO(justinabrahms): kwargs exist until we handle cli params better
         # TODO(justinabrahms): This is a sprawling API. Tighten it up.
         self.requester = requester
@@ -79,8 +90,9 @@ class Imhotep(object):
             filenames = []
         self.requested_filenames = set(filenames)
         self.shallow = shallow_clone
+        self.local_source_path = source_dir
 
-        if self.commit is None and self.pr_number is None:
+        if self.commit is None and self.pr_number is None and not source_dir:
             raise NoCommitInfo()
 
     def get_reporter(self):
@@ -102,9 +114,14 @@ class Imhotep(object):
         if not reporter:
             reporter = self.get_reporter()
         try:
-            repo = self.manager.clone_repo(self.repo_name,
-                                           remote_repo=cinfo.remote_repo,
-                                           ref=cinfo.ref)
+            if self.local_source_path:
+                repo = self.manager.get_local_repo(self.local_source_path)
+            else:
+                repo = self.manager.clone_repo(
+                    self.repo_name,
+                    remote_repo=cinfo.remote_repo,
+                    ref=cinfo.ref)
+
             diff = repo.diff_commit(cinfo.commit, compare_point=cinfo.origin)
 
             # Move out to its own thing
@@ -164,7 +181,7 @@ def gen_imhotep(**kwargs):
                       tools=tools,
                       executor=run)
 
-    source_dir = kwargs['source_dir']
+    source_dir = kwargs.pop('source_dir')
     if source_dir:
         if not os.path.exists(os.path.join(source_dir, '.git')):
             raise ValueError(
@@ -196,8 +213,13 @@ def gen_imhotep(**kwargs):
     shallow_clone = kwargs['shallow'] or False
 
     return Imhotep(
-        requester=req, repo_manager=manager, commit_info=commit_info,
-        shallow_clone=shallow_clone, **kwargs)
+        requester=req,
+        repo_manager=manager,
+        commit_info=commit_info,
+        shallow_clone=shallow_clone,
+        source_dir=source_dir,
+        **kwargs
+    )
 
 
 def get_tools(whitelist, known_plugins):

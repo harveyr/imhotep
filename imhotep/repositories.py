@@ -50,3 +50,8 @@ class AuthenticatedRepository(Repository):
     @property
     def download_location(self):
         return "git@github.com:%s.git" % self.name
+
+
+class LocalRepository(Repository):
+    def apply_commit(self, commit):
+        raise NotImplementedError
