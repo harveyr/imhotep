@@ -31,7 +31,7 @@ def find_config(dirname, config_filenames):
     return set(configs)
 
 
-def run_analysis(repo, filenames=set(), linter_configs=set()):
+def run_analysis(repo, filenames=None, linter_configs=None):
     results = {}
     for tool in repo.tools:
         log.debug("running %s" % tool.__class__.__name__)
@@ -107,6 +107,7 @@ class Imhotep(object):
         filenames = set([x.result_filename for x in entries])
         if requested_set is not None and len(requested_set):
             filenames = requested_set.intersection(filenames)
+
         return list(filenames)
 
     def invoke(self, reporter=None, max_errors=float('inf')):
@@ -147,6 +148,7 @@ class Imhotep(object):
                     error_count += 1
                     if error_count > max_errors:
                         continue
+
                     reporter.report_line(
                         cinfo.origin, entry.result_filename,
                         x, pos_map[x], violations['%s' % x])
