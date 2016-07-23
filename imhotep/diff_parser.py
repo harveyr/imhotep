@@ -78,8 +78,6 @@ class DiffContextParser:
         before_line_number, after_line_number = 0, 0
         position = 0
 
-        import ipdb; ipdb.set_trace()
-
         for line in self.diff_text.splitlines():
 
             # New File
@@ -129,3 +127,20 @@ class DiffContextParser:
             result.append(z)
 
         return result
+
+    @classmethod
+    def parse_github_compare(cls, comparison):
+        entries = []
+
+        for filecompare in comparison.files:
+            if not filecompare.patch:
+                continue
+
+            entry = Entry(filecompare.filename, filecompare.filename)
+            entries.append(entry)
+
+            for line_num, source in filecompare.modified_lines.items():
+                position = filecompare.positions_by_line[line_num]
+                entry.new_added(Line(line_num, position, source.text))
+
+        return entries

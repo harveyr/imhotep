@@ -14,6 +14,10 @@ class PRInfo(object):
         self.json = json
 
     @property
+    def number(self):
+        return self.json['number']
+
+    @property
     def base_sha(self):
         return self.json['base']['sha']
 

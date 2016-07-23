@@ -21,16 +21,27 @@ class BasicAuthRequester(object):
         self.username = username
         self.password = password
 
+    @classmethod
+    def assert_status(cls, request, expected_status):
+        if request.status_code != expected_status:
+            raise RuntimeError('[{}] {}'.format(
+                request.status_code, request.content
+            ))
+
     def get_auth(self):
         return HTTPBasicAuth(self.username, self.password)
 
-    def get(self, url):
+    def get(self, url, assert_status=None):
         log.debug("Fetching %s", url)
 
         response = requests.get(url, auth=self.get_auth())
         if response.status_code > 400:
             log.warning("Error on GET to %s. Response: %s", url,
                         response.content)
+
+        if assert_status:
+            self.assert_status(response, assert_status)
+
         return response
 
     def delete(self, url):

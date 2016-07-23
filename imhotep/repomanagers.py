@@ -38,6 +38,7 @@ class RepoManager(object):
         else:
             dirname = os.path.abspath("%s/%s" % (
                 self.cache_directory, dired_repo_name))
+
         return dirname
 
     def fetch(self, dirname, remote_name, ref):
@@ -69,12 +70,12 @@ class RepoManager(object):
                      shallow=self.shallow_clone)
         return (dirname, repo)
 
-    def get_local_repo(self, path):
+    def get_local_repo(self, name, path):
         if not os.path.isdir(os.path.join(path, '.git')):
             raise ValueError('{} is not a git repo'.format(path))
 
         return LocalRepository(
-            name=os.path.split(path)[-1],
+            name=name,
             loc=path,
             tools=self.tools,
             executor=self.executor

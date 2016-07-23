@@ -63,7 +63,7 @@ class Imhotep(object):
         requester=None,
         repo_manager=None,
         repo_name=None,
-        source_dir=None,
+        local_source=None,
         pr_number=None,
         commit_info=None,
         commit=None,
@@ -72,6 +72,7 @@ class Imhotep(object):
         debug=None,
         filenames=None,
         shallow_clone=False,
+        pr=None,
         **kwargs
     ):
         # TODO(justinabrahms): kwargs exist until we handle cli params better
@@ -79,6 +80,10 @@ class Imhotep(object):
         self.requester = requester
         self.manager = repo_manager
 
+        if pr and not pr_number:
+            pr_number = pr.number
+
+        self.pr = pr
         self.commit_info = commit_info
         self.repo_name = repo_name
         self.pr_number = pr_number
@@ -90,14 +95,15 @@ class Imhotep(object):
             filenames = []
         self.requested_filenames = set(filenames)
         self.shallow = shallow_clone
-        self.local_source_path = source_dir
+        self.local_source_path = local_source
 
-        if self.commit is None and self.pr_number is None and not source_dir:
-            raise NoCommitInfo()
+        # if self.commit is None and self.pr_number is None and not local_source:
+        #     raise NoCommitInfo()
 
     def get_reporter(self):
         if self.no_post:
             return PrintingReporter()
+
         if self.pr_number:
             return PRReporter(self.requester, self.repo_name, self.pr_number)
         elif self.commit is not None:
@@ -114,22 +120,34 @@ class Imhotep(object):
         cinfo = self.commit_info
         if not reporter:
             reporter = self.get_reporter()
+
         try:
             if self.local_source_path:
-                repo = self.manager.get_local_repo(self.local_source_path)
+                repo = self.manager.get_local_repo(
+                    self.repo_name, self.local_source_path
+                )
+                branch = self.commit_info.ref
+                comparison = repo.github_compare(self.requester, branch)
+                parse_results = DiffContextParser.parse_github_compare(
+                    comparison)
+                filenames = [
+                    os.path.join(self.local_source_path, f)
+                    for f in comparison.filepaths]
             else:
                 repo = self.manager.clone_repo(
                     self.repo_name,
                     remote_repo=cinfo.remote_repo,
                     ref=cinfo.ref)
 
-            diff = repo.diff_commit(cinfo.commit, compare_point=cinfo.origin)
+                diff = repo.diff_commit(
+                    cinfo.commit, compare_point=cinfo.origin
+                )
+                # Move out to its own thing
+                parser = DiffContextParser(diff)
+                parse_results = parser.parse()
+                filenames = self.get_filenames(parse_results,
+                                               self.requested_filenames)
 
-            # Move out to its own thing
-            parser = DiffContextParser(diff)
-            parse_results = parser.parse()
-            filenames = self.get_filenames(parse_results,
-                                           self.requested_filenames)
             results = run_analysis(repo, filenames=filenames)
 
             error_count = 0
@@ -144,6 +162,15 @@ class Imhotep(object):
 
                 matching_numbers = set(added_lines).intersection(
                     violating_lines)
+
+                print 'Added: {}'.format(added_lines)
+
+                print entry.result_filename
+                for key, val in violations.items():
+                    print '- {}: {}'.format(key, val)
+
+                print('DEBUG [app:165] (matching_numbers): {}'.format(matching_numbers))
+
                 for x in matching_numbers:
                     error_count += 1
                     if error_count > max_errors:
@@ -161,6 +188,21 @@ class Imhotep(object):
                 log.info("%d violations.", error_count)
         finally:
             self.manager.cleanup()
+
+    def _invoke_with_github_compare(self):
+        repo = self.manager.get_local_repo(
+            self.repo_name, self.local_source_path
+        )
+        branch = self.commit_info.ref
+        comparison = repo.github_compare(self.requester, branch)
+
+        diff = ''
+
+        for filecompare in comparison.files:
+            if filecompare.patch:
+                diff += filecompare.patch
+
+        results = run_analysis(repo, filenames=diff.filepaths)
 
 
 def gen_imhotep(**kwargs):
@@ -183,7 +225,8 @@ def gen_imhotep(**kwargs):
                       tools=tools,
                       executor=run)
 
-    source_dir = kwargs.pop('source_dir')
+    source_dir = kwargs.pop('local_source')
+    pr_info = None
     if source_dir:
         if not os.path.exists(os.path.join(source_dir, '.git')):
             raise ValueError(
@@ -219,7 +262,8 @@ def gen_imhotep(**kwargs):
         repo_manager=manager,
         commit_info=commit_info,
         shallow_clone=shallow_clone,
-        source_dir=source_dir,
+        local_source=source_dir,
+        pr=pr_info,
         **kwargs
     )
 
@@ -302,8 +346,13 @@ def parse_args(args):
         help="Performs a shallow clone of the repo",
         action="store_true")
     arg_parser.add_argument(
-        '--source-dir',
+        '--local-source',
         help="Run against the source code at this path as-is",
         required=False)
+    # arg_parser.add_argument(
+    #     '--github-compare',
+    #     action='store_true',
+    #     help='Use the Github Compare API for the diff',
+    #     required=False)
     # parse out repo name
     return arg_parser.parse_args(args)
