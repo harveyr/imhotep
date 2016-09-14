@@ -1,4 +1,5 @@
 import argparse
+import fnmatch
 import logging
 import subprocess
 import glob
@@ -61,7 +62,8 @@ class Imhotep(object):
                  repo_name=None, pr_number=None,
                  commit_info=None,
                  commit=None, origin_commit=None, no_post=None, debug=None,
-                 filenames=None, shallow_clone=False, **kwargs):
+                 filenames=None, shallow_clone=False, exclude_patterns=None,
+                 **kwargs):
         # TODO(justinabrahms): kwargs exist until we handle cli params better
         # TODO(justinabrahms): This is a sprawling API. Tighten it up.
         self.requester = requester
@@ -78,6 +80,8 @@ class Imhotep(object):
             filenames = []
         self.requested_filenames = set(filenames)
         self.shallow = shallow_clone
+
+        self.exclude_patterns = exclude_patterns
 
         if self.commit is None and self.pr_number is None:
             raise NoCommitInfo()
@@ -112,10 +116,29 @@ class Imhotep(object):
             parse_results = parser.parse()
             filenames = self.get_filenames(parse_results,
                                            self.requested_filenames)
+
             results = run_analysis(repo, filenames=filenames)
 
             error_count = 0
+
             for entry in parse_results:
+                filename = entry.result_filename
+                skip_file = False
+
+                if self.exclude_patterns:
+                    for pattern in self.exclude_patterns:
+                        if fnmatch.fnmatchcase(filename, pattern):
+                            log.info(
+                                'Skipping %s: it matched exclude pattern %s',
+                                filename,
+                                pattern
+                            )
+                            skip_file = True
+                            break
+
+                if skip_file:
+                    continue
+
                 added_lines = [l.number for l in entry.added_lines]
                 pos_map = {}
                 for x in entry.added_lines:
@@ -216,6 +239,9 @@ def parse_args(args):
     arg_parser.add_argument(
         '--filenames', nargs="+",
         help="filenames you want static analysis to be limited to.")
+    arg_parser.add_argument(
+        '--exclude-patterns', nargs="+",
+        help="filename patterns you want to exclude from static analysis.")
     arg_parser.add_argument(
         '--debug',
         action='store_true',
