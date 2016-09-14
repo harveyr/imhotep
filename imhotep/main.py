@@ -36,7 +36,7 @@ def main():
     if params['debug']:
         logging.basicConfig(level=logging.DEBUG)
     else:
-        logging.basicConfig()
+        logging.basicConfig(level=logging.INFO)
 
     try:
         imhotep = app.gen_imhotep(**params)
