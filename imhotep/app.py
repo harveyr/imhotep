@@ -175,7 +175,8 @@ def gen_imhotep(**kwargs):
                       github_password=kwargs['github_password'],
                       https=kwargs['https'],
                       cache_directory=kwargs['cache_directory'],
-                      tools=tools, executor=run)
+                      tools=tools,
+                      executor=run)
 
     if kwargs['pr_number']:
         pr_info = get_pr_info(req, kwargs['repo_name'], kwargs['pr_number'])
