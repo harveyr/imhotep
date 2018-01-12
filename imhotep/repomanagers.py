@@ -2,7 +2,9 @@ import logging
 import os
 from tempfile import mkdtemp
 
-from .repositories import Repository, AuthenticatedRepository
+from .repositories import (
+    Repository, AuthenticatedRepository, AuthenticatedHTTPSRepository
+)
 
 log = logging.getLogger(__name__)
 
@@ -13,17 +15,24 @@ class RepoManager(object):
     """
     to_cleanup = {}
 
-    def __init__(self, authenticated=False, cache_directory=None,
-                 tools=None, executor=None, shallow_clone=False):
+    def __init__(self, authenticated=False,
+                 https=False, github_username=None, github_password=None,
+                 cache_directory=None, tools=None, executor=None,
+                 shallow_clone=False):
         self.should_cleanup = cache_directory is None
         self.authenticated = authenticated
         self.cache_directory = cache_directory
         self.tools = tools or []
         self.executor = executor
         self.shallow = shallow_clone
+        self.github_username = github_username
+        self.github_password = github_password
+        self.https = https
 
     def get_repo_class(self):
         if self.authenticated:
+            if self.https:
+                return AuthenticatedHTTPSRepository
             return AuthenticatedRepository
         return Repository
 
@@ -59,10 +68,10 @@ class RepoManager(object):
         self.to_cleanup[repo_name] = dirname
         klass = self.get_repo_class()
         repo = klass(repo_name,
-                     dirname,
-                     self.tools,
-                     self.executor,
-                     shallow=self.shallow_clone)
+                     dirname, self.tools, self.executor,
+                     shallow=self.shallow_clone,
+                     github_username=self.github_username,
+                     github_password=self.github_password)
         return (dirname, repo)
 
     def clone_repo(self, repo_name, remote_repo, ref):

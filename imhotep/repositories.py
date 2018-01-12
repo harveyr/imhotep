@@ -12,7 +12,7 @@ class Repository(object):
     Represents a github repository (both in the abstract and on disk).
     """
 
-    def __init__(self, name, loc, tools, executor, shallow=False):
+    def __init__(self, name, loc, tools, executor, shallow=False, **kwargs):
         if len(tools) == 0:
             raise ToolsNotFound()
 
@@ -50,3 +50,17 @@ class AuthenticatedRepository(Repository):
     @property
     def download_location(self):
         return "git@github.com:%s.git" % self.name
+
+
+class AuthenticatedHTTPSRepository(Repository):
+    def __init__(self, *args, **kwargs):
+        self.github_username = kwargs.pop('github_username')
+        self.github_password = kwargs.pop('github_password')
+
+        super(AuthenticatedHTTPSRepository, self).__init__(*args, **kwargs)
+
+    @property
+    def download_location(self):
+        return 'https://{}:{}@github.com/{}.git'.format(
+            self.github_username, self.github_password, self.name
+        )

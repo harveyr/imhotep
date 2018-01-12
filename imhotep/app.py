@@ -86,8 +86,6 @@ class Imhotep(object):
         self.shallow = shallow_clone
         self.report_file_violations = report_file_violations
 
-        self.exclude_patterns = exclude_patterns
-
         if self.commit is None and self.pr_number is None:
             raise NoCommitInfo()
 
@@ -129,17 +127,6 @@ class Imhotep(object):
             for entry in parse_results:
                 filename = entry.result_filename
                 skip_file = False
-
-                if self.exclude_patterns:
-                    for pattern in self.exclude_patterns:
-                        if fnmatch.fnmatchcase(filename, pattern):
-                            log.info(
-                                'Skipping %s: it matched exclude pattern %s',
-                                filename,
-                                pattern
-                            )
-                            skip_file = True
-                            break
 
                 if skip_file:
                     continue
@@ -192,9 +179,11 @@ def gen_imhotep(**kwargs):
         Manager = RepoManager
 
     manager = Manager(authenticated=kwargs['authenticated'],
+                      github_username=kwargs['github_username'],
+                      github_password=kwargs['github_password'],
+                      https=kwargs['https'],
                       cache_directory=kwargs['cache_directory'],
-                      tools=tools,
-                      executor=run)
+                      tools=tools, executor=run)
 
     if kwargs['pr_number']:
         pr_info = get_pr_info(req, kwargs['repo_name'], kwargs['pr_number'])
@@ -271,6 +260,10 @@ def parse_args(args):
         '--authenticated',
         action="store_true",
         help="Indicates the repository requires authentication")
+    arg_parser.add_argument(
+        '--https',
+        action='store_true',
+        help='Clone the repository using HTTPS instead of SSH')
     arg_parser.add_argument(
         '--pr-number',
         help="Number of the pull request to comment on")
