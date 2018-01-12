@@ -119,18 +119,10 @@ class Imhotep(object):
             parse_results = parser.parse()
             filenames = self.get_filenames(parse_results,
                                            self.requested_filenames)
-
             results = run_analysis(repo, filenames=filenames)
 
             error_count = 0
-
             for entry in parse_results:
-                filename = entry.result_filename
-                skip_file = False
-
-                if skip_file:
-                    continue
-
                 added_lines = [l.number for l in entry.added_lines]
                 if not entry.added_lines:
                     continue
@@ -239,9 +231,6 @@ def parse_args(args):
     arg_parser.add_argument(
         '--filenames', nargs="+",
         help="filenames you want static analysis to be limited to.")
-    arg_parser.add_argument(
-        '--exclude-patterns', nargs="+",
-        help="filename patterns you want to exclude from static analysis.")
     arg_parser.add_argument(
         '--debug',
         action='store_true',
