@@ -11,6 +11,9 @@ class Tool(object):
 
       {'relative_filename': {'line_number': [error1, error2]}}
       eg: {'imhotep/app.py': {'103': ['line too long']}}
+
+    Line numbers are indexed from 1, with the value 0 signifying a file-level
+    linting violation.
     """
 
     def __init__(self, command_executor, filenames=set()):
@@ -37,12 +40,20 @@ class Tool(object):
         """
         retval = defaultdict(lambda: defaultdict(list))
         if len(filenames):
+            extensions = [e.lstrip('.') for e in self.get_file_extensions()]
+            filenames = [f for f in filenames if f.split('.')[-1] in extensions]
+
+            if not filenames:
+                # There were a specified set of files, but none were the right
+                # extension. Different from the else-case below.
+                return {}
+
             to_find = ' -o '.join(['-samefile "%s"' % f for f in filenames])
         else:
             to_find = ' -o '.join(['-name "*%s"' % ext
                                    for ext in self.get_file_extensions()])
 
-        cmd = 'find %s %s | xargs %s' % (
+        cmd = 'find %s -path "*/%s" | xargs %s' % (
             dirname, to_find, self.get_command(
                 dirname,
                 linter_configs=linter_configs))

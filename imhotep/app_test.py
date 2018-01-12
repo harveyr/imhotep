@@ -51,7 +51,7 @@ def test_tools_invoked_on_repo():
 def test_run_analysis__config_fetch_error_handled():
     mock_tool = mock.Mock()
     mock_tool.get_configs.side_effect = AttributeError()
-    mock_tool.invoke.return_value = []
+    mock_tool.invoke.return_value = {}
 
     repo = Repository('name', 'loc', [mock_tool], None)
 
@@ -60,14 +60,26 @@ def test_run_analysis__config_fetch_error_handled():
 
 def test_tools_merges_tool_results():
     m = mock.MagicMock()
-    m.invoke.return_value = {'a': 1}
+    m.invoke.return_value = {'a': {'4': ['a violation']}}
     m2 = mock.MagicMock()
-    m2.invoke.return_value = {'b': 2}
+    m2.invoke.return_value = {'b': {'32': ['another violation']}}
     repo = Repository('name', 'location', [m, m2], None)
     retval = run_analysis(repo)
 
     assert 'a' in retval
     assert 'b' in retval
+
+
+def test_tools_merges_results_without_overwriting():
+    m = mock.MagicMock()
+    m.invoke.return_value = {'a': {'b': [1]}}
+    m2 = mock.MagicMock()
+    m2.invoke.return_value = {'a': {'b': [2]}}
+    repo = Repository('name', 'location', [m, m2], None)
+    retval = run_analysis(repo)
+
+    assert 1 in retval['a']['b']
+    assert 2 in retval['a']['b']
 
 
 def test_tools_errors_on_no_tools():
@@ -269,6 +281,30 @@ def test_invoke__reports_errors():
     assert not reporter.post_comment.called
 
 
+def test_invoke__skips_empty_files():
+    with open('imhotep/fixtures/deleted_file.diff') as f:
+        deleted_file = f.read()
+    reporter = mock.create_autospec(PRReporter)
+    manager = mock.create_autospec(RepoManager)
+    tool = mock.create_autospec(Tool)
+    tool.get_configs.side_effect = AttributeError
+    tool.invoke.return_value = {
+        'imhotep/diff_parser_test.py': {
+            '13': 'there was an error'
+        }
+    }
+    manager.clone_repo.return_value.diff_commit.return_value = deleted_file
+    manager.clone_repo.return_value.tools = [tool]
+    imhotep = Imhotep(
+        pr_number=1,
+        repo_manager=manager,
+        commit_info=mock.Mock(),
+    )
+    imhotep.invoke(reporter=reporter)
+
+    assert not reporter.report_line.called
+
+
 def test_invoke__triggers_max_errors():
     with open('imhotep/fixtures/10line.diff') as f:
         ten_diff = f.read()
@@ -300,3 +336,43 @@ def test_invoke__triggers_max_errors():
 
     assert reporter.report_line.call_count == 2
     assert reporter.post_comment.called
+
+
+def test_invoke__reports_file_errors():
+    with open('imhotep/fixtures/two-block.diff') as f:
+        two_block = f.read()
+    reporter = mock.create_autospec(PRReporter)
+    manager = mock.create_autospec(RepoManager)
+    tool = mock.create_autospec(Tool)
+    tool.get_configs.side_effect = AttributeError
+    tool.invoke.return_value = {
+        'imhotep/diff_parser_test.py': {
+            '0': 'imports are not sorted in this file'
+        }
+    }
+    manager.clone_repo.return_value.diff_commit.return_value = two_block
+    manager.clone_repo.return_value.tools = [tool]
+    imhotep = Imhotep(
+        pr_number=1,
+        repo_manager=manager,
+        commit_info=mock.Mock(),
+        report_file_violations=True,
+    )
+    imhotep.invoke(reporter=reporter)
+
+    assert reporter.report_line.called
+    assert not reporter.post_comment.called
+
+    # Reset mock and ensure that the default case is no file-level violations.
+    reporter.reset_mock()
+
+    imhotep = Imhotep(
+        pr_number=1,
+        repo_manager=manager,
+        commit_info=mock.Mock(),
+        # report_file_violations is False by default
+    )
+    imhotep.invoke(reporter=reporter)
+
+    assert not reporter.report_line.called
+    assert not reporter.post_comment.called

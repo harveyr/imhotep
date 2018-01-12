@@ -1,8 +1,8 @@
 import argparse
-import fnmatch
+from collections import defaultdict
+import glob
 import logging
 import subprocess
-import glob
 
 import pkg_resources
 
@@ -32,7 +32,7 @@ def find_config(dirname, config_filenames):
 
 
 def run_analysis(repo, filenames=set(), linter_configs=set()):
-    results = {}
+    results = defaultdict(lambda: defaultdict(list))
     for tool in repo.tools:
         log.debug("running %s" % tool.__class__.__name__)
         configs = {}
@@ -45,7 +45,11 @@ def run_analysis(repo, filenames=set(), linter_configs=set()):
         run_results = tool.invoke(repo.dirname,
                                   filenames=filenames,
                                   linter_configs=linter_configs)
-        results.update(run_results)
+
+        for fname, fresults in run_results.items():
+            for lineno, violations in fresults.items():
+                results[fname][lineno].extend(violations)
+
     return results
 
 
@@ -62,8 +66,8 @@ class Imhotep(object):
                  repo_name=None, pr_number=None,
                  commit_info=None,
                  commit=None, origin_commit=None, no_post=None, debug=None,
-                 filenames=None, shallow_clone=False, exclude_patterns=None,
-                 **kwargs):
+                 filenames=None, shallow_clone=False,
+                 report_file_violations=False, **kwargs):
         # TODO(justinabrahms): kwargs exist until we handle cli params better
         # TODO(justinabrahms): This is a sprawling API. Tighten it up.
         self.requester = requester
@@ -80,6 +84,7 @@ class Imhotep(object):
             filenames = []
         self.requested_filenames = set(filenames)
         self.shallow = shallow_clone
+        self.report_file_violations = report_file_violations
 
         self.exclude_patterns = exclude_patterns
 
@@ -140,9 +145,15 @@ class Imhotep(object):
                     continue
 
                 added_lines = [l.number for l in entry.added_lines]
-                pos_map = {}
+                if not entry.added_lines:
+                    continue
+                pos_map = {0: min(l.position for l in entry.added_lines)}
                 for x in entry.added_lines:
                     pos_map[x.number] = x.position
+
+                if self.report_file_violations:
+                    # "magic" value of line 0 represents file-level results.
+                    added_lines.append(0)
 
                 violations = results.get(entry.result_filename, {})
                 violating_lines = [int(l) for l in violations.keys()]
@@ -278,6 +289,10 @@ def parse_args(args):
     arg_parser.add_argument(
         '--shallow',
         help="Performs a shallow clone of the repo",
+        action="store_true")
+    arg_parser.add_argument(
+        '--report-file-violations',
+        help="Report file-level violations, i.e. those not on individual lines",
         action="store_true")
     # parse out repo name
     return arg_parser.parse_args(args)
