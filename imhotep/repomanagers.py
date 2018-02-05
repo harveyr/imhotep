@@ -3,7 +3,7 @@ import os
 from tempfile import mkdtemp
 
 from .repositories import (
-    Repository, AuthenticatedRepository, AuthenticatedHTTPSRepository
+    Repository, AuthenticatedHTTPSRepository, AuthenticatedRepository
 )
 
 log = logging.getLogger(__name__)
@@ -68,7 +68,9 @@ class RepoManager(object):
         self.to_cleanup[repo_name] = dirname
         klass = self.get_repo_class()
         repo = klass(repo_name,
-                     dirname, self.tools, self.executor,
+                     dirname,
+                     self.tools,
+                     self.executor,
                      shallow=self.shallow_clone,
                      github_username=self.github_username,
                      github_password=self.github_password)

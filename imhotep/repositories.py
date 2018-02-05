@@ -12,7 +12,7 @@ class Repository(object):
     Represents a github repository (both in the abstract and on disk).
     """
 
-    def __init__(self, name, loc, tools, executor, shallow=False, **kwargs):
+    def __init__(self, name, loc, tools, executor, shallow=False):
         if len(tools) == 0:
             raise ToolsNotFound()
 
